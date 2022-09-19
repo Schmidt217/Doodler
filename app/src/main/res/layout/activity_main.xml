@@ -24,7 +24,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerCrop"
-            android:src="@drawable/paris"/>
+            />
 
         <dev.mikeschmidt.doodler.DrawingView
             android:id="@+id/drawingView"
@@ -152,11 +152,41 @@
             />
 
         <ImageButton
+            android:id="@+id/undo"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_margin="5dp"
+            android:src="@drawable/undo"
+            android:scaleType="fitXY"
+            />
+
+        <ImageButton
             android:id="@+id/brush"
             android:layout_width="50dp"
             android:layout_height="50dp"
             android:layout_margin="5dp"
             android:src="@drawable/paintbrush"
+            android:scaleType="fitXY"
+
+            />
+
+        <ImageButton
+            android:id="@+id/redo"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_margin="5dp"
+            android:src="@drawable/redo"
+            android:scaleType="fitXY"
+            />
+
+
+
+        <ImageButton
+            android:id="@+id/save"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_margin="5dp"
+            android:src="@drawable/floppy"
             android:scaleType="fitXY"
 
             />

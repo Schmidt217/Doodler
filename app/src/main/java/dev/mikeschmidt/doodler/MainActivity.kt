@@ -3,22 +3,42 @@ package dev.mikeschmidt.doodler
 import android.Manifest
 import android.app.AlertDialog
 import android.app.Dialog
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
-import android.widget.ImageButton
-import android.widget.LinearLayout
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.get
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.lang.Exception
 
 
 class MainActivity : AppCompatActivity() {
     private var drawingView: DrawingView? = null
     private var mImageButtonCurrentPaint: ImageButton? = null
+
+    private val openGalleryLauncher: ActivityResultLauncher<Intent> = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        result ->
+        if(result.resultCode == RESULT_OK && result.data != null) {
+            val imageBackground: ImageView = findViewById(R.id.iv_background)
+            imageBackground.setImageURI(result.data?.data)
+        }
+    }
 
     private val requestPermission: ActivityResultLauncher<Array<String>> = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()) {
@@ -29,6 +49,8 @@ class MainActivity : AppCompatActivity() {
 
             if(isGranted) {
                 Toast.makeText(this, "Permission granted! Now you can read the storage files.", Toast.LENGTH_LONG).show()
+                val pickIntent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                openGalleryLauncher.launch(pickIntent)
             }else {
                 if(permissionName == Manifest.permission.READ_EXTERNAL_STORAGE){
                     Toast.makeText(this, "Opps! You just denied the permission.", Toast.LENGTH_LONG).show()
@@ -57,6 +79,26 @@ class MainActivity : AppCompatActivity() {
         val galleryBtn: ImageButton = findViewById(R.id.image_file)
         galleryBtn.setOnClickListener {
             requestStoragePermission()
+        }
+
+        val undoBtn: ImageButton = findViewById(R.id.undo)
+        undoBtn.setOnClickListener {
+            drawingView?.onPressUndo()
+        }
+
+        val redoBtn: ImageButton = findViewById(R.id.redo)
+        redoBtn.setOnClickListener {
+            drawingView?.onPressRedo()
+        }
+        val saveBtn: ImageButton = findViewById(R.id.save)
+        saveBtn.setOnClickListener {
+            if(isReadStorageAllowed()) {
+                lifecycleScope.launch{
+                    val flDrawingView:FrameLayout = findViewById(R.id.drawing_view_container)
+
+                    saveBitmapFile(getBitmapFromView(flDrawingView))
+                }
+            }
         }
     }
 
@@ -103,13 +145,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isReadStorageAllowed(): Boolean {
+        val result = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+
+        return result == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun requestStoragePermission() {
         if(ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.READ_EXTERNAL_STORAGE)){
             showRationalDialog("Doodler", "Doodler needs to access to your external storage")
         }else{
             requestPermission.launch(arrayOf(
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            // TODO: Writing external storage permission
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+
             ))
         }
     }
@@ -124,4 +173,55 @@ class MainActivity : AppCompatActivity() {
             }
         builder.create().show()
     }
+
+    private fun getBitmapFromView(view: View) : Bitmap {
+        val returnedBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(returnedBitmap)
+        val bgDrawable = view.background
+        if(bgDrawable !=null){
+            bgDrawable.draw(canvas)
+        }else{
+            canvas.drawColor(Color.WHITE)
+        }
+
+        view.draw(canvas)
+
+        return returnedBitmap
+    }
+
+    private suspend fun saveBitmapFile(mBitmap: Bitmap?): String {
+        var result = ""
+        withContext(Dispatchers.IO) {
+            if(mBitmap != null) {
+                try {
+                    val bytes = ByteArrayOutputStream()
+                    mBitmap.compress(Bitmap.CompressFormat.PNG, 90, bytes)
+
+                    val f = File(externalCacheDir?.absoluteFile.toString() +
+                        File.separator + "Doodler_" + System.currentTimeMillis() / 1000 + ".png"
+                    )
+                    val fo = FileOutputStream(f)
+                    fo.write(bytes.toByteArray())
+                    fo.close()
+
+                    result = f.absolutePath
+
+                    runOnUiThread {
+                        if(result.isNotEmpty()) {
+                            Toast.makeText(this@MainActivity, "File saved successfully $result", Toast.LENGTH_LONG).show()
+                        }else {
+                            Toast.makeText(this@MainActivity, "Something went wrong saving this file", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }catch (e: Exception) {
+                    result = ""
+                    e.printStackTrace()
+                }
+            }
+        }
+        return result
+    }
+
 }
+
+
